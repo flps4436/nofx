@@ -1,41 +1,44 @@
 package trader
 
-// Trader 交易器统一接口
-// 支持多个交易平台（币安、Hyperliquid等）
+// Trader 交易器統一接口
+// 支持多個交易平台（幣安、Hyperliquid等）
 type Trader interface {
-	// GetBalance 获取账户余额
+	// GetBalance 獲取賬戶余額
 	GetBalance() (map[string]interface{}, error)
 
-	// GetPositions 获取所有持仓
+	// GetPositions 獲取所有持倉
 	GetPositions() ([]map[string]interface{}, error)
 
-	// OpenLong 开多仓
+	// OpenLong 開多倉
 	OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error)
 
-	// OpenShort 开空仓
+	// OpenShort 開空倉
 	OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error)
 
-	// CloseLong 平多仓（quantity=0表示全部平仓）
+	// CloseLong 平多倉（quantity=0表示全部平倉）
 	CloseLong(symbol string, quantity float64) (map[string]interface{}, error)
 
-	// CloseShort 平空仓（quantity=0表示全部平仓）
+	// CloseShort 平空倉（quantity=0表示全部平倉）
 	CloseShort(symbol string, quantity float64) (map[string]interface{}, error)
 
-	// SetLeverage 设置杠杆
+	// SetLeverage 設置杠杆
 	SetLeverage(symbol string, leverage int) error
 
-	// GetMarketPrice 获取市场价格
+	// GetMarketPrice 獲取市場價格
 	GetMarketPrice(symbol string) (float64, error)
 
-	// SetStopLoss 设置止损单
+	// SetStopLoss 設置止損單
 	SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error
 
-	// SetTakeProfit 设置止盈单
+	// SetTakeProfit 設置止盈單
 	SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error
 
-	// CancelAllOrders 取消该币种的所有挂单
+	// CancelAllOrders 取消該幣種的所有掛單
 	CancelAllOrders(symbol string) error
 
-	// FormatQuantity 格式化数量到正确的精度
+	// CancelStopOrders 取消該幣種的止盈/止損單（用於調整止盈止損位置）
+	CancelStopOrders(symbol string) error
+
+	// FormatQuantity 格式化數量到正確的精度
 	FormatQuantity(symbol string, quantity float64) (string, error)
 }

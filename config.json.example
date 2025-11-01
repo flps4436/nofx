@@ -26,6 +26,19 @@
       "scan_interval_minutes": 3
     },
     {
+      "id": "binance_openai",
+      "name": "Binance OpenAI Trader",
+      "enabled": false,
+      "ai_model": "openai",
+      "exchange": "binance",
+      "binance_api_key": "your_binance_api_key",
+      "binance_secret_key": "your_binance_secret_key",
+      "openai_key": "sk-your_openai_api_key",
+      "openai_model_name": "gpt-4o-mini",
+      "initial_balance": 1000,
+      "scan_interval_minutes": 3
+    },
+    {
       "id": "binance_custom",
       "name": "Binance Custom API Trader",
       "enabled": false,

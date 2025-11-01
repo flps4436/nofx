@@ -24,37 +24,37 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-// AsterTrader Aster交易平台实现
+// AsterTrader Aster交易平台實現
 type AsterTrader struct {
 	ctx        context.Context
-	user       string           // 主钱包地址 (ERC20)
-	signer     string           // API钱包地址
-	privateKey *ecdsa.PrivateKey // API钱包私钥
+	user       string            // 主錢包地址 (ERC20)
+	signer     string            // API錢包地址
+	privateKey *ecdsa.PrivateKey // API錢包私鑰
 	client     *http.Client
 	baseURL    string
 
-	// 缓存交易对精度信息
+	// 緩存交易對精度信息
 	symbolPrecision map[string]SymbolPrecision
 	mu              sync.RWMutex
 }
 
-// SymbolPrecision 交易对精度信息
+// SymbolPrecision 交易對精度信息
 type SymbolPrecision struct {
 	PricePrecision    int
 	QuantityPrecision int
-	TickSize          float64 // 价格步进值
-	StepSize          float64 // 数量步进值
+	TickSize          float64 // 價格步進值
+	StepSize          float64 // 數量步進值
 }
 
-// NewAsterTrader 创建Aster交易器
-// user: 主钱包地址 (登录地址)
-// signer: API钱包地址 (从 https://www.asterdex.com/en/api-wallet 获取)
-// privateKey: API钱包私钥 (从 https://www.asterdex.com/en/api-wallet 获取)
+// NewAsterTrader 創建Aster交易器
+// user: 主錢包地址 (登錄地址)
+// signer: API錢包地址 (從 https://www.asterdex.com/en/api-wallet 獲取)
+// privateKey: API錢包私鑰 (從 https://www.asterdex.com/en/api-wallet 獲取)
 func NewAsterTrader(user, signer, privateKeyHex string) (*AsterTrader, error) {
-	// 解析私钥
+	// 解析私鑰
 	privKey, err := crypto.HexToECDSA(strings.TrimPrefix(privateKeyHex, "0x"))
 	if err != nil {
-		return nil, fmt.Errorf("解析私钥失败: %w", err)
+		return nil, fmt.Errorf("解析私鑰失敗: %w", err)
 	}
 
 	return &AsterTrader{
@@ -75,12 +75,12 @@ func NewAsterTrader(user, signer, privateKeyHex string) (*AsterTrader, error) {
 	}, nil
 }
 
-// genNonce 生成微秒时间戳
+// genNonce 生成微秒時間戳
 func (t *AsterTrader) genNonce() uint64 {
 	return uint64(time.Now().UnixMicro())
 }
 
-// getPrecision 获取交易对精度信息
+// getPrecision 獲取交易對精度信息
 func (t *AsterTrader) getPrecision(symbol string) (SymbolPrecision, error) {
 	t.mu.RLock()
 	if prec, ok := t.symbolPrecision[symbol]; ok {
@@ -89,7 +89,7 @@ func (t *AsterTrader) getPrecision(symbol string) (SymbolPrecision, error) {
 	}
 	t.mu.RUnlock()
 
-	// 获取交易所信息
+	// 獲取交易所信息
 	resp, err := t.client.Get(t.baseURL + "/fapi/v3/exchangeInfo")
 	if err != nil {
 		return SymbolPrecision{}, err
@@ -99,9 +99,9 @@ func (t *AsterTrader) getPrecision(symbol string) (SymbolPrecision, error) {
 	body, _ := io.ReadAll(resp.Body)
 	var info struct {
 		Symbols []struct {
-			Symbol            string `json:"symbol"`
-			PricePrecision    int    `json:"pricePrecision"`
-			QuantityPrecision int    `json:"quantityPrecision"`
+			Symbol            string                   `json:"symbol"`
+			PricePrecision    int                      `json:"pricePrecision"`
+			QuantityPrecision int                      `json:"quantityPrecision"`
 			Filters           []map[string]interface{} `json:"filters"`
 		} `json:"symbols"`
 	}
@@ -110,7 +110,7 @@ func (t *AsterTrader) getPrecision(symbol string) (SymbolPrecision, error) {
 		return SymbolPrecision{}, err
 	}
 
-	// 缓存所有交易对的精度
+	// 緩存所有交易對的精度
 	t.mu.Lock()
 	for _, s := range info.Symbols {
 		prec := SymbolPrecision{
@@ -118,7 +118,7 @@ func (t *AsterTrader) getPrecision(symbol string) (SymbolPrecision, error) {
 			QuantityPrecision: s.QuantityPrecision,
 		}
 
-		// 解析filters获取tickSize和stepSize
+		// 解析filters獲取tickSize和stepSize
 		for _, filter := range s.Filters {
 			filterType, _ := filter["filterType"].(string)
 			switch filterType {
@@ -141,69 +141,69 @@ func (t *AsterTrader) getPrecision(symbol string) (SymbolPrecision, error) {
 		return prec, nil
 	}
 
-	return SymbolPrecision{}, fmt.Errorf("未找到交易对 %s 的精度信息", symbol)
+	return SymbolPrecision{}, fmt.Errorf("未找到交易對 %s 的精度信息", symbol)
 }
 
-// roundToTickSize 将价格/数量四舍五入到tick size/step size的整数倍
+// roundToTickSize 將價格/數量四舍五入到tick size/step size的整數倍
 func roundToTickSize(value float64, tickSize float64) float64 {
 	if tickSize <= 0 {
 		return value
 	}
-	// 计算有多少个tick size
+	// 計算有多少個tick size
 	steps := value / tickSize
-	// 四舍五入到最近的整数
+	// 四舍五入到最近的整數
 	roundedSteps := math.Round(steps)
 	// 乘回tick size
 	return roundedSteps * tickSize
 }
 
-// formatPrice 格式化价格到正确精度和tick size
+// formatPrice 格式化價格到正確精度和tick size
 func (t *AsterTrader) formatPrice(symbol string, price float64) (float64, error) {
 	prec, err := t.getPrecision(symbol)
 	if err != nil {
 		return 0, err
 	}
 
-	// 优先使用tick size，确保价格是tick size的整数倍
+	// 優先使用tick size，確保價格是tick size的整數倍
 	if prec.TickSize > 0 {
 		return roundToTickSize(price, prec.TickSize), nil
 	}
 
-	// 如果没有tick size，则按精度四舍五入
+	// 如果沒有tick size，則按精度四舍五入
 	multiplier := math.Pow10(prec.PricePrecision)
 	return math.Round(price*multiplier) / multiplier, nil
 }
 
-// formatQuantity 格式化数量到正确精度和step size
+// formatQuantity 格式化數量到正確精度和step size
 func (t *AsterTrader) formatQuantity(symbol string, quantity float64) (float64, error) {
 	prec, err := t.getPrecision(symbol)
 	if err != nil {
 		return 0, err
 	}
 
-	// 优先使用step size，确保数量是step size的整数倍
+	// 優先使用step size，確保數量是step size的整數倍
 	if prec.StepSize > 0 {
 		return roundToTickSize(quantity, prec.StepSize), nil
 	}
 
-	// 如果没有step size，则按精度四舍五入
+	// 如果沒有step size，則按精度四舍五入
 	multiplier := math.Pow10(prec.QuantityPrecision)
 	return math.Round(quantity*multiplier) / multiplier, nil
 }
 
-// formatFloatWithPrecision 将浮点数格式化为指定精度的字符串（去除末尾的0）
+// formatFloatWithPrecision 將浮點數格式化為指定精度的字符串（去除末尾的0）
 func (t *AsterTrader) formatFloatWithPrecision(value float64, precision int) string {
 	// 使用指定精度格式化
 	formatted := strconv.FormatFloat(value, 'f', precision, 64)
 
-	// 去除末尾的0和小数点（如果有）
+	// 去除末尾的0和小數點（如果有）
 	formatted = strings.TrimRight(formatted, "0")
 	formatted = strings.TrimRight(formatted, ".")
 
 	return formatted
 }
 
-// normalizeAndStringify 对参数进行规范化并序列化为JSON字符串（按key排序）
+// normalizeAndStringify 對參數進行規範化並序列化為JSON字符串（按key排序）
 func (t *AsterTrader) normalizeAndStringify(params map[string]interface{}) (string, error) {
 	normalized, err := t.normalize(params)
 	if err != nil {
@@ -216,7 +216,7 @@ func (t *AsterTrader) normalizeAndStringify(params map[string]interface{}) (stri
 	return string(bs), nil
 }
 
-// normalize 递归规范化参数（按key排序，所有值转为字符串）
+// normalize 遞歸規範化參數（按key排序，所有值轉為字符串）
 func (t *AsterTrader) normalize(v interface{}) (interface{}, error) {
 	switch val := v.(type) {
 	case map[string]interface{}:
@@ -255,24 +255,24 @@ func (t *AsterTrader) normalize(v interface{}) (interface{}, error) {
 	case bool:
 		return fmt.Sprintf("%v", val), nil
 	default:
-		// 其他类型转为字符串
+		// 其他類型轉為字符串
 		return fmt.Sprintf("%v", val), nil
 	}
 }
 
-// sign 对请求参数进行签名
+// sign 對請求參數進行簽名
 func (t *AsterTrader) sign(params map[string]interface{}, nonce uint64) error {
-	// 添加时间戳和接收窗口
+	// 添加時間戳和接收窗口
 	params["recvWindow"] = "50000"
 	params["timestamp"] = strconv.FormatInt(time.Now().UnixNano()/int64(time.Millisecond), 10)
 
-	// 规范化参数为JSON字符串
+	// 規範化參數為JSON字符串
 	jsonStr, err := t.normalizeAndStringify(params)
 	if err != nil {
 		return err
 	}
 
-	// ABI编码: (string, address, address, uint256)
+	// ABI編碼: (string, address, address, uint256)
 	addrUser := common.HexToAddress(t.user)
 	addrSigner := common.HexToAddress(t.signer)
 	nonceBig := new(big.Int).SetUint64(nonce)
@@ -290,29 +290,29 @@ func (t *AsterTrader) sign(params map[string]interface{}, nonce uint64) error {
 
 	packed, err := arguments.Pack(jsonStr, addrUser, addrSigner, nonceBig)
 	if err != nil {
-		return fmt.Errorf("ABI编码失败: %w", err)
+		return fmt.Errorf("ABI編碼失敗: %w", err)
 	}
 
 	// Keccak256哈希
 	hash := crypto.Keccak256(packed)
 
-	// 以太坊签名消息前缀
+	// 以太坊簽名消息前綴
 	prefixedMsg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(hash), hash)
 	msgHash := crypto.Keccak256Hash([]byte(prefixedMsg))
 
-	// ECDSA签名
+	// ECDSA簽名
 	sig, err := crypto.Sign(msgHash.Bytes(), t.privateKey)
 	if err != nil {
-		return fmt.Errorf("签名失败: %w", err)
+		return fmt.Errorf("簽名失敗: %w", err)
 	}
 
-	// 将v从0/1转换为27/28
+	// 將v從0/1轉換為27/28
 	if len(sig) != 65 {
-		return fmt.Errorf("签名长度异常: %d", len(sig))
+		return fmt.Errorf("簽名長度異常: %d", len(sig))
 	}
 	sig[64] += 27
 
-	// 添加签名参数
+	// 添加簽名參數
 	params["user"] = t.user
 	params["signer"] = t.signer
 	params["signature"] = "0x" + hex.EncodeToString(sig)
@@ -321,20 +321,20 @@ func (t *AsterTrader) sign(params map[string]interface{}, nonce uint64) error {
 	return nil
 }
 
-// request 发送HTTP请求（带重试机制）
+// request 發送HTTP請求（帶重試機制）
 func (t *AsterTrader) request(method, endpoint string, params map[string]interface{}) ([]byte, error) {
 	const maxRetries = 3
 	var lastErr error
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		// 每次重试都生成新的nonce和签名
+		// 每次重試都生成新的nonce和簽名
 		nonce := t.genNonce()
 		paramsCopy := make(map[string]interface{})
 		for k, v := range params {
 			paramsCopy[k] = v
 		}
 
-		// 签名
+		// 簽名
 		if err := t.sign(paramsCopy, nonce); err != nil {
 			return nil, err
 		}
@@ -346,7 +346,7 @@ func (t *AsterTrader) request(method, endpoint string, params map[string]interfa
 
 		lastErr = err
 
-		// 如果是网络超时或临时错误，重试
+		// 如果是網絡超時或臨時錯誤，重試
 		if strings.Contains(err.Error(), "timeout") ||
 			strings.Contains(err.Error(), "connection reset") ||
 			strings.Contains(err.Error(), "EOF") {
@@ -357,21 +357,21 @@ func (t *AsterTrader) request(method, endpoint string, params map[string]interfa
 			}
 		}
 
-		// 其他错误（如400/401等）不重试
+		// 其他錯誤（如400/401等）不重試
 		return nil, err
 	}
 
-	return nil, fmt.Errorf("请求失败（已重试%d次）: %w", maxRetries, lastErr)
+	return nil, fmt.Errorf("請求失敗（已重試%d次）: %w", maxRetries, lastErr)
 }
 
-// doRequest 执行实际的HTTP请求
+// doRequest 執行實際的HTTP請求
 func (t *AsterTrader) doRequest(method, endpoint string, params map[string]interface{}) ([]byte, error) {
 	fullURL := t.baseURL + endpoint
 	method = strings.ToUpper(method)
 
 	switch method {
 	case "POST":
-		// POST请求：参数放在表单body中
+		// POST請求：參數放在表單body中
 		form := url.Values{}
 		for k, v := range params {
 			form.Set(k, fmt.Sprintf("%v", v))
@@ -395,7 +395,7 @@ func (t *AsterTrader) doRequest(method, endpoint string, params map[string]inter
 		return body, nil
 
 	case "GET", "DELETE":
-		// GET/DELETE请求：参数放在querystring中
+		// GET/DELETE請求：參數放在querystring中
 		q := url.Values{}
 		for k, v := range params {
 			q.Set(k, fmt.Sprintf("%v", v))
@@ -425,7 +425,7 @@ func (t *AsterTrader) doRequest(method, endpoint string, params map[string]inter
 	}
 }
 
-// GetBalance 获取账户余额
+// GetBalance 獲取賬戶余額
 func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 	params := make(map[string]interface{})
 	body, err := t.request("GET", "/fapi/v3/balance", params)
@@ -438,7 +438,7 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 		return nil, err
 	}
 
-	// 查找USDT余额
+	// 查找USDT余額
 	totalBalance := 0.0
 	availableBalance := 0.0
 	crossUnPnl := 0.0
@@ -458,7 +458,7 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 		}
 	}
 
-	// 返回与Binance相同的字段名，确保AutoTrader能正确解析
+	// 返回與Binance相同的字段名，確保AutoTrader能正確解析
 	return map[string]interface{}{
 		"totalWalletBalance":    totalBalance,
 		"availableBalance":      availableBalance,
@@ -466,7 +466,7 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 	}, nil
 }
 
-// GetPositions 获取持仓信息
+// GetPositions 獲取持倉信息
 func (t *AsterTrader) GetPositions() ([]map[string]interface{}, error) {
 	params := make(map[string]interface{})
 	body, err := t.request("GET", "/fapi/v3/positionRisk", params)
@@ -488,7 +488,7 @@ func (t *AsterTrader) GetPositions() ([]map[string]interface{}, error) {
 
 		posAmt, _ := strconv.ParseFloat(posAmtStr, 64)
 		if posAmt == 0 {
-			continue // 跳过空仓位
+			continue // 跳過空倉位
 		}
 
 		entryPrice, _ := strconv.ParseFloat(pos["entryPrice"].(string), 64)
@@ -497,51 +497,51 @@ func (t *AsterTrader) GetPositions() ([]map[string]interface{}, error) {
 		leverageVal, _ := strconv.ParseFloat(pos["leverage"].(string), 64)
 		liquidationPrice, _ := strconv.ParseFloat(pos["liquidationPrice"].(string), 64)
 
-		// 判断方向（与Binance一致）
+		// 判斷方向（與Binance一致）
 		side := "long"
 		if posAmt < 0 {
 			side = "short"
 			posAmt = -posAmt
 		}
 
-		// 返回与Binance相同的字段名
+		// 返回與Binance相同的字段名
 		result = append(result, map[string]interface{}{
-			"symbol":            pos["symbol"],
-			"side":              side,
-			"positionAmt":       posAmt,
-			"entryPrice":        entryPrice,
-			"markPrice":         markPrice,
-			"unRealizedProfit":  unRealizedProfit,
-			"leverage":          leverageVal,
-			"liquidationPrice":  liquidationPrice,
+			"symbol":           pos["symbol"],
+			"side":             side,
+			"positionAmt":      posAmt,
+			"entryPrice":       entryPrice,
+			"markPrice":        markPrice,
+			"unRealizedProfit": unRealizedProfit,
+			"leverage":         leverageVal,
+			"liquidationPrice": liquidationPrice,
 		})
 	}
 
 	return result, nil
 }
 
-// OpenLong 开多单
+// OpenLong 開多單
 func (t *AsterTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
-	// 开仓前先取消所有挂单,防止残留挂单导致仓位叠加
+	// 開倉前先取消所有掛單,防止殘留掛單導致倉位疊加
 	if err := t.CancelAllOrders(symbol); err != nil {
-		log.Printf("  ⚠ 取消挂单失败(继续开仓): %v", err)
+		log.Printf("  ⚠ 取消掛單失敗(繼續開倉): %v", err)
 	}
 
-	// 先设置杠杆
+	// 先設置杠杆
 	if err := t.SetLeverage(symbol, leverage); err != nil {
-		return nil, fmt.Errorf("设置杠杆失败: %w", err)
+		return nil, fmt.Errorf("設置杠杆失敗: %w", err)
 	}
 
-	// 获取当前价格
+	// 獲取當前價格
 	price, err := t.GetMarketPrice(symbol)
 	if err != nil {
 		return nil, err
 	}
 
-	// 使用限价单模拟市价单（价格设置得稍高一些以确保成交）
+	// 使用限價單模擬市價單（價格設置得稍高一些以確保成交）
 	limitPrice := price * 1.01
 
-	// 格式化价格和数量到正确精度
+	// 格式化價格和數量到正確精度
 	formattedPrice, err := t.formatPrice(symbol, limitPrice)
 	if err != nil {
 		return nil, err
@@ -551,17 +551,17 @@ func (t *AsterTrader) OpenLong(symbol string, quantity float64, leverage int) (m
 		return nil, err
 	}
 
-	// 获取精度信息
+	// 獲取精度信息
 	prec, err := t.getPrecision(symbol)
 	if err != nil {
 		return nil, err
 	}
 
-	// 转换为字符串，使用正确的精度格式
+	// 轉換為字符串，使用正確的精度格式
 	priceStr := t.formatFloatWithPrecision(formattedPrice, prec.PricePrecision)
 	qtyStr := t.formatFloatWithPrecision(formattedQty, prec.QuantityPrecision)
 
-	log.Printf("  📏 精度处理: 价格 %.8f -> %s (精度=%d), 数量 %.8f -> %s (精度=%d)",
+	log.Printf("  📏 精度處理: 價格 %.8f -> %s (精度=%d), 數量 %.8f -> %s (精度=%d)",
 		limitPrice, priceStr, prec.PricePrecision, quantity, qtyStr, prec.QuantityPrecision)
 
 	params := map[string]interface{}{
@@ -587,28 +587,28 @@ func (t *AsterTrader) OpenLong(symbol string, quantity float64, leverage int) (m
 	return result, nil
 }
 
-// OpenShort 开空单
+// OpenShort 開空單
 func (t *AsterTrader) OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
-	// 开仓前先取消所有挂单,防止残留挂单导致仓位叠加
+	// 開倉前先取消所有掛單,防止殘留掛單導致倉位疊加
 	if err := t.CancelAllOrders(symbol); err != nil {
-		log.Printf("  ⚠ 取消挂单失败(继续开仓): %v", err)
+		log.Printf("  ⚠ 取消掛單失敗(繼續開倉): %v", err)
 	}
 
-	// 先设置杠杆
+	// 先設置杠杆
 	if err := t.SetLeverage(symbol, leverage); err != nil {
-		return nil, fmt.Errorf("设置杠杆失败: %w", err)
+		return nil, fmt.Errorf("設置杠杆失敗: %w", err)
 	}
 
-	// 获取当前价格
+	// 獲取當前價格
 	price, err := t.GetMarketPrice(symbol)
 	if err != nil {
 		return nil, err
 	}
 
-	// 使用限价单模拟市价单（价格设置得稍低一些以确保成交）
+	// 使用限價單模擬市價單（價格設置得稍低一些以確保成交）
 	limitPrice := price * 0.99
 
-	// 格式化价格和数量到正确精度
+	// 格式化價格和數量到正確精度
 	formattedPrice, err := t.formatPrice(symbol, limitPrice)
 	if err != nil {
 		return nil, err
@@ -618,17 +618,17 @@ func (t *AsterTrader) OpenShort(symbol string, quantity float64, leverage int) (
 		return nil, err
 	}
 
-	// 获取精度信息
+	// 獲取精度信息
 	prec, err := t.getPrecision(symbol)
 	if err != nil {
 		return nil, err
 	}
 
-	// 转换为字符串，使用正确的精度格式
+	// 轉換為字符串，使用正確的精度格式
 	priceStr := t.formatFloatWithPrecision(formattedPrice, prec.PricePrecision)
 	qtyStr := t.formatFloatWithPrecision(formattedQty, prec.QuantityPrecision)
 
-	log.Printf("  📏 精度处理: 价格 %.8f -> %s (精度=%d), 数量 %.8f -> %s (精度=%d)",
+	log.Printf("  📏 精度處理: 價格 %.8f -> %s (精度=%d), 數量 %.8f -> %s (精度=%d)",
 		limitPrice, priceStr, prec.PricePrecision, quantity, qtyStr, prec.QuantityPrecision)
 
 	params := map[string]interface{}{
@@ -654,9 +654,9 @@ func (t *AsterTrader) OpenShort(symbol string, quantity float64, leverage int) (
 	return result, nil
 }
 
-// CloseLong 平多单
+// CloseLong 平多單
 func (t *AsterTrader) CloseLong(symbol string, quantity float64) (map[string]interface{}, error) {
-	// 如果数量为0，获取当前持仓数量
+	// 如果數量為0，獲取當前持倉數量
 	if quantity == 0 {
 		positions, err := t.GetPositions()
 		if err != nil {
@@ -671,9 +671,9 @@ func (t *AsterTrader) CloseLong(symbol string, quantity float64) (map[string]int
 		}
 
 		if quantity == 0 {
-			return nil, fmt.Errorf("没有找到 %s 的多仓", symbol)
+			return nil, fmt.Errorf("沒有找到 %s 的多倉", symbol)
 		}
-		log.Printf("  📊 获取到多仓数量: %.8f", quantity)
+		log.Printf("  📊 獲取到多倉數量: %.8f", quantity)
 	}
 
 	price, err := t.GetMarketPrice(symbol)
@@ -683,7 +683,7 @@ func (t *AsterTrader) CloseLong(symbol string, quantity float64) (map[string]int
 
 	limitPrice := price * 0.99
 
-	// 格式化价格和数量到正确精度
+	// 格式化價格和數量到正確精度
 	formattedPrice, err := t.formatPrice(symbol, limitPrice)
 	if err != nil {
 		return nil, err
@@ -693,17 +693,17 @@ func (t *AsterTrader) CloseLong(symbol string, quantity float64) (map[string]int
 		return nil, err
 	}
 
-	// 获取精度信息
+	// 獲取精度信息
 	prec, err := t.getPrecision(symbol)
 	if err != nil {
 		return nil, err
 	}
 
-	// 转换为字符串，使用正确的精度格式
+	// 轉換為字符串，使用正確的精度格式
 	priceStr := t.formatFloatWithPrecision(formattedPrice, prec.PricePrecision)
 	qtyStr := t.formatFloatWithPrecision(formattedQty, prec.QuantityPrecision)
 
-	log.Printf("  📏 精度处理: 价格 %.8f -> %s (精度=%d), 数量 %.8f -> %s (精度=%d)",
+	log.Printf("  📏 精度處理: 價格 %.8f -> %s (精度=%d), 數量 %.8f -> %s (精度=%d)",
 		limitPrice, priceStr, prec.PricePrecision, quantity, qtyStr, prec.QuantityPrecision)
 
 	params := map[string]interface{}{
@@ -726,19 +726,19 @@ func (t *AsterTrader) CloseLong(symbol string, quantity float64) (map[string]int
 		return nil, err
 	}
 
-	log.Printf("✓ 平多仓成功: %s 数量: %s", symbol, qtyStr)
+	log.Printf("✓ 平多倉成功: %s 數量: %s", symbol, qtyStr)
 
-	// 平仓后取消该币种的所有挂单(止损止盈单)
+	// 平倉後取消該幣種的所有掛單(止損止盈單)
 	if err := t.CancelAllOrders(symbol); err != nil {
-		log.Printf("  ⚠ 取消挂单失败: %v", err)
+		log.Printf("  ⚠ 取消掛單失敗: %v", err)
 	}
 
 	return result, nil
 }
 
-// CloseShort 平空单
+// CloseShort 平空單
 func (t *AsterTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
-	// 如果数量为0，获取当前持仓数量
+	// 如果數量為0，獲取當前持倉數量
 	if quantity == 0 {
 		positions, err := t.GetPositions()
 		if err != nil {
@@ -747,16 +747,16 @@ func (t *AsterTrader) CloseShort(symbol string, quantity float64) (map[string]in
 
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "short" {
-				// Aster的GetPositions已经将空仓数量转换为正数，直接使用
+				// Aster的GetPositions已經將空倉數量轉換為正數，直接使用
 				quantity = pos["positionAmt"].(float64)
 				break
 			}
 		}
 
 		if quantity == 0 {
-			return nil, fmt.Errorf("没有找到 %s 的空仓", symbol)
+			return nil, fmt.Errorf("沒有找到 %s 的空倉", symbol)
 		}
-		log.Printf("  📊 获取到空仓数量: %.8f", quantity)
+		log.Printf("  📊 獲取到空倉數量: %.8f", quantity)
 	}
 
 	price, err := t.GetMarketPrice(symbol)
@@ -766,7 +766,7 @@ func (t *AsterTrader) CloseShort(symbol string, quantity float64) (map[string]in
 
 	limitPrice := price * 1.01
 
-	// 格式化价格和数量到正确精度
+	// 格式化價格和數量到正確精度
 	formattedPrice, err := t.formatPrice(symbol, limitPrice)
 	if err != nil {
 		return nil, err
@@ -776,17 +776,17 @@ func (t *AsterTrader) CloseShort(symbol string, quantity float64) (map[string]in
 		return nil, err
 	}
 
-	// 获取精度信息
+	// 獲取精度信息
 	prec, err := t.getPrecision(symbol)
 	if err != nil {
 		return nil, err
 	}
 
-	// 转换为字符串，使用正确的精度格式
+	// 轉換為字符串，使用正確的精度格式
 	priceStr := t.formatFloatWithPrecision(formattedPrice, prec.PricePrecision)
 	qtyStr := t.formatFloatWithPrecision(formattedQty, prec.QuantityPrecision)
 
-	log.Printf("  📏 精度处理: 价格 %.8f -> %s (精度=%d), 数量 %.8f -> %s (精度=%d)",
+	log.Printf("  📏 精度處理: 價格 %.8f -> %s (精度=%d), 數量 %.8f -> %s (精度=%d)",
 		limitPrice, priceStr, prec.PricePrecision, quantity, qtyStr, prec.QuantityPrecision)
 
 	params := map[string]interface{}{
@@ -809,17 +809,17 @@ func (t *AsterTrader) CloseShort(symbol string, quantity float64) (map[string]in
 		return nil, err
 	}
 
-	log.Printf("✓ 平空仓成功: %s 数量: %s", symbol, qtyStr)
+	log.Printf("✓ 平空倉成功: %s 數量: %s", symbol, qtyStr)
 
-	// 平仓后取消该币种的所有挂单(止损止盈单)
+	// 平倉後取消該幣種的所有掛單(止損止盈單)
 	if err := t.CancelAllOrders(symbol); err != nil {
-		log.Printf("  ⚠ 取消挂单失败: %v", err)
+		log.Printf("  ⚠ 取消掛單失敗: %v", err)
 	}
 
 	return result, nil
 }
 
-// SetLeverage 设置杠杆倍数
+// SetLeverage 設置杠杆倍數
 func (t *AsterTrader) SetLeverage(symbol string, leverage int) error {
 	params := map[string]interface{}{
 		"symbol":   symbol,
@@ -830,9 +830,9 @@ func (t *AsterTrader) SetLeverage(symbol string, leverage int) error {
 	return err
 }
 
-// GetMarketPrice 获取市场价格
+// GetMarketPrice 獲取市場價格
 func (t *AsterTrader) GetMarketPrice(symbol string) (float64, error) {
-	// 使用ticker接口获取当前价格
+	// 使用ticker接口獲取當前價格
 	resp, err := t.client.Get(fmt.Sprintf("%s/fapi/v3/ticker/price?symbol=%s", t.baseURL, symbol))
 	if err != nil {
 		return 0, err
@@ -851,20 +851,20 @@ func (t *AsterTrader) GetMarketPrice(symbol string) (float64, error) {
 
 	priceStr, ok := result["price"].(string)
 	if !ok {
-		return 0, errors.New("无法获取价格")
+		return 0, errors.New("無法獲取價格")
 	}
 
 	return strconv.ParseFloat(priceStr, 64)
 }
 
-// SetStopLoss 设置止损
+// SetStopLoss 設置止損
 func (t *AsterTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
 	side := "SELL"
 	if positionSide == "SHORT" {
 		side = "BUY"
 	}
 
-	// 格式化价格和数量到正确精度
+	// 格式化價格和數量到正確精度
 	formattedPrice, err := t.formatPrice(symbol, stopPrice)
 	if err != nil {
 		return err
@@ -874,13 +874,13 @@ func (t *AsterTrader) SetStopLoss(symbol string, positionSide string, quantity, 
 		return err
 	}
 
-	// 获取精度信息
+	// 獲取精度信息
 	prec, err := t.getPrecision(symbol)
 	if err != nil {
 		return err
 	}
 
-	// 转换为字符串，使用正确的精度格式
+	// 轉換為字符串，使用正確的精度格式
 	priceStr := t.formatFloatWithPrecision(formattedPrice, prec.PricePrecision)
 	qtyStr := t.formatFloatWithPrecision(formattedQty, prec.QuantityPrecision)
 
@@ -898,14 +898,14 @@ func (t *AsterTrader) SetStopLoss(symbol string, positionSide string, quantity, 
 	return err
 }
 
-// SetTakeProfit 设置止盈
+// SetTakeProfit 設置止盈
 func (t *AsterTrader) SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error {
 	side := "SELL"
 	if positionSide == "SHORT" {
 		side = "BUY"
 	}
 
-	// 格式化价格和数量到正确精度
+	// 格式化價格和數量到正確精度
 	formattedPrice, err := t.formatPrice(symbol, takeProfitPrice)
 	if err != nil {
 		return err
@@ -915,13 +915,13 @@ func (t *AsterTrader) SetTakeProfit(symbol string, positionSide string, quantity
 		return err
 	}
 
-	// 获取精度信息
+	// 獲取精度信息
 	prec, err := t.getPrecision(symbol)
 	if err != nil {
 		return err
 	}
 
-	// 转换为字符串，使用正确的精度格式
+	// 轉換為字符串，使用正確的精度格式
 	priceStr := t.formatFloatWithPrecision(formattedPrice, prec.PricePrecision)
 	qtyStr := t.formatFloatWithPrecision(formattedQty, prec.QuantityPrecision)
 
@@ -939,7 +939,7 @@ func (t *AsterTrader) SetTakeProfit(symbol string, positionSide string, quantity
 	return err
 }
 
-// CancelAllOrders 取消所有订单
+// CancelAllOrders 取消所有訂單
 func (t *AsterTrader) CancelAllOrders(symbol string) error {
 	params := map[string]interface{}{
 		"symbol": symbol,
@@ -949,7 +949,62 @@ func (t *AsterTrader) CancelAllOrders(symbol string) error {
 	return err
 }
 
-// FormatQuantity 格式化数量（实现Trader接口）
+// CancelStopOrders 取消該幣種的止盈/止損單（用於調整止盈止損位置）
+func (t *AsterTrader) CancelStopOrders(symbol string) error {
+	// 獲取該幣種的所有未完成訂單
+	params := map[string]interface{}{
+		"symbol": symbol,
+	}
+
+	body, err := t.request("GET", "/fapi/v3/openOrders", params)
+	if err != nil {
+		return fmt.Errorf("獲取未完成訂單失敗: %w", err)
+	}
+
+	var orders []map[string]interface{}
+	if err := json.Unmarshal(body, &orders); err != nil {
+		return fmt.Errorf("解析訂單數據失敗: %w", err)
+	}
+
+	// 過濾出止盈止損單並取消
+	canceledCount := 0
+	for _, order := range orders {
+		orderType, _ := order["type"].(string)
+
+		// 只取消止損和止盈訂單
+		if orderType == "STOP_MARKET" ||
+			orderType == "TAKE_PROFIT_MARKET" ||
+			orderType == "STOP" ||
+			orderType == "TAKE_PROFIT" {
+
+			orderID, _ := order["orderId"].(float64)
+			cancelParams := map[string]interface{}{
+				"symbol":  symbol,
+				"orderId": int64(orderID),
+			}
+
+			_, err := t.request("DELETE", "/fapi/v3/order", cancelParams)
+			if err != nil {
+				log.Printf("  ⚠ 取消訂單 %d 失敗: %v", int64(orderID), err)
+				continue
+			}
+
+			canceledCount++
+			log.Printf("  ✓ 已取消 %s 的止盈/止損單 (訂單ID: %d, 類型: %s)",
+				symbol, int64(orderID), orderType)
+		}
+	}
+
+	if canceledCount == 0 {
+		log.Printf("  ℹ %s 沒有止盈/止損單需要取消", symbol)
+	} else {
+		log.Printf("  ✓ 已取消 %s 的 %d 個止盈/止損單", symbol, canceledCount)
+	}
+
+	return nil
+}
+
+// FormatQuantity 格式化數量（實現Trader接口）
 func (t *AsterTrader) FormatQuantity(symbol string, quantity float64) (string, error) {
 	formatted, err := t.formatQuantity(symbol, quantity)
 	if err != nil {

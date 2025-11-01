@@ -10,23 +10,23 @@ import (
 	"time"
 )
 
-// DecisionRecord 决策记录
+// DecisionRecord 決策記錄
 type DecisionRecord struct {
-	Timestamp      time.Time          `json:"timestamp"`       // 决策时间
-	CycleNumber    int                `json:"cycle_number"`    // 周期编号
-	InputPrompt    string             `json:"input_prompt"`    // 发送给AI的输入prompt
-	CoTTrace       string             `json:"cot_trace"`       // AI思维链（输出）
-	DecisionJSON   string             `json:"decision_json"`   // 决策JSON
-	AccountState   AccountSnapshot    `json:"account_state"`   // 账户状态快照
-	Positions      []PositionSnapshot `json:"positions"`       // 持仓快照
-	CandidateCoins []string           `json:"candidate_coins"` // 候选币种列表
-	Decisions      []DecisionAction   `json:"decisions"`       // 执行的决策
-	ExecutionLog   []string           `json:"execution_log"`   // 执行日志
+	Timestamp      time.Time          `json:"timestamp"`       // 決策時間
+	CycleNumber    int                `json:"cycle_number"`    // 周期編號
+	InputPrompt    string             `json:"input_prompt"`    // 發送給AI的輸入prompt
+	CoTTrace       string             `json:"cot_trace"`       // AI思維鏈（輸出）
+	DecisionJSON   string             `json:"decision_json"`   // 決策JSON
+	AccountState   AccountSnapshot    `json:"account_state"`   // 賬戶狀態快照
+	Positions      []PositionSnapshot `json:"positions"`       // 持倉快照
+	CandidateCoins []string           `json:"candidate_coins"` // 候選幣種列表
+	Decisions      []DecisionAction   `json:"decisions"`       // 執行的決策
+	ExecutionLog   []string           `json:"execution_log"`   // 執行日志
 	Success        bool               `json:"success"`         // 是否成功
-	ErrorMessage   string             `json:"error_message"`   // 错误信息（如果有）
+	ErrorMessage   string             `json:"error_message"`   // 錯誤信息（如果有）
 }
 
-// AccountSnapshot 账户状态快照
+// AccountSnapshot 賬戶狀態快照
 type AccountSnapshot struct {
 	TotalBalance          float64 `json:"total_balance"`
 	AvailableBalance      float64 `json:"available_balance"`
@@ -35,7 +35,7 @@ type AccountSnapshot struct {
 	MarginUsedPct         float64 `json:"margin_used_pct"`
 }
 
-// PositionSnapshot 持仓快照
+// PositionSnapshot 持倉快照
 type PositionSnapshot struct {
 	Symbol           string  `json:"symbol"`
 	Side             string  `json:"side"`
@@ -47,34 +47,34 @@ type PositionSnapshot struct {
 	LiquidationPrice float64 `json:"liquidation_price"`
 }
 
-// DecisionAction 决策动作
+// DecisionAction 決策動作
 type DecisionAction struct {
 	Action    string    `json:"action"`    // open_long, open_short, close_long, close_short
-	Symbol    string    `json:"symbol"`    // 币种
-	Quantity  float64   `json:"quantity"`  // 数量
-	Leverage  int       `json:"leverage"`  // 杠杆（开仓时）
-	Price     float64   `json:"price"`     // 执行价格
-	OrderID   int64     `json:"order_id"`  // 订单ID
-	Timestamp time.Time `json:"timestamp"` // 执行时间
+	Symbol    string    `json:"symbol"`    // 幣種
+	Quantity  float64   `json:"quantity"`  // 數量
+	Leverage  int       `json:"leverage"`  // 杠杆（開倉時）
+	Price     float64   `json:"price"`     // 執行價格
+	OrderID   int64     `json:"order_id"`  // 訂單ID
+	Timestamp time.Time `json:"timestamp"` // 執行時間
 	Success   bool      `json:"success"`   // 是否成功
-	Error     string    `json:"error"`     // 错误信息
+	Error     string    `json:"error"`     // 錯誤信息
 }
 
-// DecisionLogger 决策日志记录器
+// DecisionLogger 決策日志記錄器
 type DecisionLogger struct {
 	logDir      string
 	cycleNumber int
 }
 
-// NewDecisionLogger 创建决策日志记录器
+// NewDecisionLogger 創建決策日志記錄器
 func NewDecisionLogger(logDir string) *DecisionLogger {
 	if logDir == "" {
 		logDir = "decision_logs"
 	}
 
-	// 确保日志目录存在
+	// 確保日志目錄存在
 	if err := os.MkdirAll(logDir, 0755); err != nil {
-		fmt.Printf("⚠ 创建日志目录失败: %v\n", err)
+		fmt.Printf("⚠ 創建日志目錄失敗: %v\n", err)
 	}
 
 	return &DecisionLogger{
@@ -83,7 +83,7 @@ func NewDecisionLogger(logDir string) *DecisionLogger {
 	}
 }
 
-// LogDecision 记录决策
+// LogDecision 記錄決策
 func (l *DecisionLogger) LogDecision(record *DecisionRecord) error {
 	l.cycleNumber++
 	record.CycleNumber = l.cycleNumber
@@ -96,29 +96,29 @@ func (l *DecisionLogger) LogDecision(record *DecisionRecord) error {
 
 	filepath := filepath.Join(l.logDir, filename)
 
-	// 序列化为JSON（带缩进，方便阅读）
+	// 序列化為JSON（帶縮進，方便閱讀）
 	data, err := json.MarshalIndent(record, "", "  ")
 	if err != nil {
-		return fmt.Errorf("序列化决策记录失败: %w", err)
+		return fmt.Errorf("序列化決策記錄失敗: %w", err)
 	}
 
-	// 写入文件
+	// 寫入文件
 	if err := ioutil.WriteFile(filepath, data, 0644); err != nil {
-		return fmt.Errorf("写入决策记录失败: %w", err)
+		return fmt.Errorf("寫入決策記錄失敗: %w", err)
 	}
 
-	fmt.Printf("📝 决策记录已保存: %s\n", filename)
+	fmt.Printf("📝 決策記錄已保存: %s\n", filename)
 	return nil
 }
 
-// GetLatestRecords 获取最近N条记录（按时间正序：从旧到新）
+// GetLatestRecords 獲取最近N條記錄（按時間正序：從舊到新）
 func (l *DecisionLogger) GetLatestRecords(n int) ([]*DecisionRecord, error) {
 	files, err := ioutil.ReadDir(l.logDir)
 	if err != nil {
-		return nil, fmt.Errorf("读取日志目录失败: %w", err)
+		return nil, fmt.Errorf("讀取日志目錄失敗: %w", err)
 	}
 
-	// 先按修改时间倒序收集（最新的在前）
+	// 先按修改時間倒序收集（最新的在前）
 	var records []*DecisionRecord
 	count := 0
 	for i := len(files) - 1; i >= 0 && count < n; i-- {
@@ -142,7 +142,7 @@ func (l *DecisionLogger) GetLatestRecords(n int) ([]*DecisionRecord, error) {
 		count++
 	}
 
-	// 反转数组，让时间从旧到新排列（用于图表显示）
+	// 反轉數組，讓時間從舊到新排列（用於圖表顯示）
 	for i, j := 0, len(records)-1; i < j; i, j = i+1, j-1 {
 		records[i], records[j] = records[j], records[i]
 	}
@@ -150,14 +150,14 @@ func (l *DecisionLogger) GetLatestRecords(n int) ([]*DecisionRecord, error) {
 	return records, nil
 }
 
-// GetRecordByDate 获取指定日期的所有记录
+// GetRecordByDate 獲取指定日期的所有記錄
 func (l *DecisionLogger) GetRecordByDate(date time.Time) ([]*DecisionRecord, error) {
 	dateStr := date.Format("20060102")
 	pattern := filepath.Join(l.logDir, fmt.Sprintf("decision_%s_*.json", dateStr))
 
 	files, err := filepath.Glob(pattern)
 	if err != nil {
-		return nil, fmt.Errorf("查找日志文件失败: %w", err)
+		return nil, fmt.Errorf("查找日志文件失敗: %w", err)
 	}
 
 	var records []*DecisionRecord
@@ -178,13 +178,13 @@ func (l *DecisionLogger) GetRecordByDate(date time.Time) ([]*DecisionRecord, err
 	return records, nil
 }
 
-// CleanOldRecords 清理N天前的旧记录
+// CleanOldRecords 清理N天前的舊記錄
 func (l *DecisionLogger) CleanOldRecords(days int) error {
 	cutoffTime := time.Now().AddDate(0, 0, -days)
 
 	files, err := ioutil.ReadDir(l.logDir)
 	if err != nil {
-		return fmt.Errorf("读取日志目录失败: %w", err)
+		return fmt.Errorf("讀取日志目錄失敗: %w", err)
 	}
 
 	removedCount := 0
@@ -196,7 +196,7 @@ func (l *DecisionLogger) CleanOldRecords(days int) error {
 		if file.ModTime().Before(cutoffTime) {
 			filepath := filepath.Join(l.logDir, file.Name())
 			if err := os.Remove(filepath); err != nil {
-				fmt.Printf("⚠ 删除旧记录失败 %s: %v\n", file.Name(), err)
+				fmt.Printf("⚠ 刪除舊記錄失敗 %s: %v\n", file.Name(), err)
 				continue
 			}
 			removedCount++
@@ -204,17 +204,17 @@ func (l *DecisionLogger) CleanOldRecords(days int) error {
 	}
 
 	if removedCount > 0 {
-		fmt.Printf("🗑️ 已清理 %d 条旧记录（%d天前）\n", removedCount, days)
+		fmt.Printf("🗑️ 已清理 %d 條舊記錄（%d天前）\n", removedCount, days)
 	}
 
 	return nil
 }
 
-// GetStatistics 获取统计信息
+// GetStatistics 獲取統計信息
 func (l *DecisionLogger) GetStatistics() (*Statistics, error) {
 	files, err := ioutil.ReadDir(l.logDir)
 	if err != nil {
-		return nil, fmt.Errorf("读取日志目录失败: %w", err)
+		return nil, fmt.Errorf("讀取日志目錄失敗: %w", err)
 	}
 
 	stats := &Statistics{}
@@ -258,7 +258,7 @@ func (l *DecisionLogger) GetStatistics() (*Statistics, error) {
 	return stats, nil
 }
 
-// Statistics 统计信息
+// Statistics 統計信息
 type Statistics struct {
 	TotalCycles         int `json:"total_cycles"`
 	SuccessfulCycles    int `json:"successful_cycles"`
@@ -267,56 +267,56 @@ type Statistics struct {
 	TotalClosePositions int `json:"total_close_positions"`
 }
 
-// TradeOutcome 单笔交易结果
+// TradeOutcome 單筆交易結果
 type TradeOutcome struct {
-	Symbol        string    `json:"symbol"`         // 币种
+	Symbol        string    `json:"symbol"`         // 幣種
 	Side          string    `json:"side"`           // long/short
-	Quantity      float64   `json:"quantity"`       // 仓位数量
-	Leverage      int       `json:"leverage"`       // 杠杆倍数
-	OpenPrice     float64   `json:"open_price"`     // 开仓价
-	ClosePrice    float64   `json:"close_price"`    // 平仓价
-	PositionValue float64   `json:"position_value"` // 仓位价值（quantity × openPrice）
-	MarginUsed    float64   `json:"margin_used"`    // 保证金使用（positionValue / leverage）
-	PnL           float64   `json:"pn_l"`           // 盈亏（USDT）
-	PnLPct        float64   `json:"pn_l_pct"`       // 盈亏百分比（相对保证金）
-	Duration      string    `json:"duration"`       // 持仓时长
-	OpenTime      time.Time `json:"open_time"`      // 开仓时间
-	CloseTime     time.Time `json:"close_time"`     // 平仓时间
-	WasStopLoss   bool      `json:"was_stop_loss"`  // 是否止损
+	Quantity      float64   `json:"quantity"`       // 倉位數量
+	Leverage      int       `json:"leverage"`       // 杠杆倍數
+	OpenPrice     float64   `json:"open_price"`     // 開倉價
+	ClosePrice    float64   `json:"close_price"`    // 平倉價
+	PositionValue float64   `json:"position_value"` // 倉位價值（quantity × openPrice）
+	MarginUsed    float64   `json:"margin_used"`    // 保證金使用（positionValue / leverage）
+	PnL           float64   `json:"pn_l"`           // 盈虧（USDT）
+	PnLPct        float64   `json:"pn_l_pct"`       // 盈虧百分比（相對保證金）
+	Duration      string    `json:"duration"`       // 持倉時長
+	OpenTime      time.Time `json:"open_time"`      // 開倉時間
+	CloseTime     time.Time `json:"close_time"`     // 平倉時間
+	WasStopLoss   bool      `json:"was_stop_loss"`  // 是否止損
 }
 
-// PerformanceAnalysis 交易表现分析
+// PerformanceAnalysis 交易表現分析
 type PerformanceAnalysis struct {
-	TotalTrades   int                           `json:"total_trades"`   // 总交易数
-	WinningTrades int                           `json:"winning_trades"` // 盈利交易数
-	LosingTrades  int                           `json:"losing_trades"`  // 亏损交易数
-	WinRate       float64                       `json:"win_rate"`       // 胜率
+	TotalTrades   int                           `json:"total_trades"`   // 總交易數
+	WinningTrades int                           `json:"winning_trades"` // 盈利交易數
+	LosingTrades  int                           `json:"losing_trades"`  // 虧損交易數
+	WinRate       float64                       `json:"win_rate"`       // 勝率
 	AvgWin        float64                       `json:"avg_win"`        // 平均盈利
-	AvgLoss       float64                       `json:"avg_loss"`       // 平均亏损
-	ProfitFactor  float64                       `json:"profit_factor"`  // 盈亏比
-	SharpeRatio   float64                       `json:"sharpe_ratio"`   // 夏普比率（风险调整后收益）
-	RecentTrades  []TradeOutcome                `json:"recent_trades"`  // 最近N笔交易
-	SymbolStats   map[string]*SymbolPerformance `json:"symbol_stats"`   // 各币种表现
-	BestSymbol    string                        `json:"best_symbol"`    // 表现最好的币种
-	WorstSymbol   string                        `json:"worst_symbol"`   // 表现最差的币种
+	AvgLoss       float64                       `json:"avg_loss"`       // 平均虧損
+	ProfitFactor  float64                       `json:"profit_factor"`  // 盈虧比
+	SharpeRatio   float64                       `json:"sharpe_ratio"`   // 夏普比率（風險調整後收益）
+	RecentTrades  []TradeOutcome                `json:"recent_trades"`  // 最近N筆交易
+	SymbolStats   map[string]*SymbolPerformance `json:"symbol_stats"`   // 各幣種表現
+	BestSymbol    string                        `json:"best_symbol"`    // 表現最好的幣種
+	WorstSymbol   string                        `json:"worst_symbol"`   // 表現最差的幣種
 }
 
-// SymbolPerformance 币种表现统计
+// SymbolPerformance 幣種表現統計
 type SymbolPerformance struct {
-	Symbol        string  `json:"symbol"`         // 币种
-	TotalTrades   int     `json:"total_trades"`   // 交易次数
-	WinningTrades int     `json:"winning_trades"` // 盈利次数
-	LosingTrades  int     `json:"losing_trades"`  // 亏损次数
-	WinRate       float64 `json:"win_rate"`       // 胜率
-	TotalPnL      float64 `json:"total_pn_l"`     // 总盈亏
-	AvgPnL        float64 `json:"avg_pn_l"`       // 平均盈亏
+	Symbol        string  `json:"symbol"`         // 幣種
+	TotalTrades   int     `json:"total_trades"`   // 交易次數
+	WinningTrades int     `json:"winning_trades"` // 盈利次數
+	LosingTrades  int     `json:"losing_trades"`  // 虧損次數
+	WinRate       float64 `json:"win_rate"`       // 勝率
+	TotalPnL      float64 `json:"total_pn_l"`     // 總盈虧
+	AvgPnL        float64 `json:"avg_pn_l"`       // 平均盈虧
 }
 
-// AnalyzePerformance 分析最近N个周期的交易表现
+// AnalyzePerformance 分析最近N個周期的交易表現
 func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAnalysis, error) {
 	records, err := l.GetLatestRecords(lookbackCycles)
 	if err != nil {
-		return nil, fmt.Errorf("读取历史记录失败: %w", err)
+		return nil, fmt.Errorf("讀取歷史記錄失敗: %w", err)
 	}
 
 	if len(records) == 0 {
@@ -331,14 +331,14 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 		SymbolStats:  make(map[string]*SymbolPerformance),
 	}
 
-	// 追踪持仓状态：symbol_side -> {side, openPrice, openTime, quantity, leverage}
+	// 追蹤持倉狀態：symbol_side -> {side, openPrice, openTime, quantity, leverage}
 	openPositions := make(map[string]map[string]interface{})
 
-	// 为了避免开仓记录在窗口外导致匹配失败，需要先从所有历史记录中找出未平仓的持仓
-	// 获取更多历史记录来构建完整的持仓状态（使用更大的窗口）
-	allRecords, err := l.GetLatestRecords(lookbackCycles * 3) // 扩大3倍窗口
+	// 為了避免開倉記錄在窗口外導致匹配失敗，需要先從所有歷史記錄中找出未平倉的持倉
+	// 獲取更多歷史記錄來構建完整的持倉狀態（使用更大的窗口）
+	allRecords, err := l.GetLatestRecords(lookbackCycles * 3) // 擴大3倍窗口
 	if err == nil && len(allRecords) > len(records) {
-		// 先从扩大的窗口中收集所有开仓记录
+		// 先從擴大的窗口中收集所有開倉記錄
 		for _, record := range allRecords {
 			for _, action := range record.Decisions {
 				if !action.Success {
@@ -356,7 +356,7 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 
 				switch action.Action {
 				case "open_long", "open_short":
-					// 记录开仓
+					// 記錄開倉
 					openPositions[posKey] = map[string]interface{}{
 						"side":      side,
 						"openPrice": action.Price,
@@ -365,14 +365,14 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 						"leverage":  action.Leverage,
 					}
 				case "close_long", "close_short":
-					// 移除已平仓记录
+					// 移除已平倉記錄
 					delete(openPositions, posKey)
 				}
 			}
 		}
 	}
 
-	// 遍历分析窗口内的记录，生成交易结果
+	// 遍歷分析窗口內的記錄，生成交易結果
 	for _, record := range records {
 		for _, action := range record.Decisions {
 			if !action.Success {
@@ -386,11 +386,11 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 			} else if action.Action == "open_short" || action.Action == "close_short" {
 				side = "short"
 			}
-			posKey := symbol + "_" + side // 使用symbol_side作为key，区分多空持仓
+			posKey := symbol + "_" + side // 使用symbol_side作為key，區分多空持倉
 
 			switch action.Action {
 			case "open_long", "open_short":
-				// 更新开仓记录（可能已经在预填充时记录过了）
+				// 更新開倉記錄（可能已經在預填充時記錄過了）
 				openPositions[posKey] = map[string]interface{}{
 					"side":      side,
 					"openPrice": action.Price,
@@ -400,7 +400,7 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 				}
 
 			case "close_long", "close_short":
-				// 查找对应的开仓记录（可能来自预填充或当前窗口）
+				// 查找對應的開倉記錄（可能來自預填充或當前窗口）
 				if openPos, exists := openPositions[posKey]; exists {
 					openPrice := openPos["openPrice"].(float64)
 					openTime := openPos["openTime"].(time.Time)
@@ -408,9 +408,9 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 					quantity := openPos["quantity"].(float64)
 					leverage := openPos["leverage"].(int)
 
-					// 计算实际盈亏（USDT）
-					// 合约交易 PnL 计算：quantity × 价格差
-					// 注意：杠杆不影响绝对盈亏，只影响保证金需求
+					// 計算實際盈虧（USDT）
+					// 合約交易 PnL 計算：quantity × 價格差
+					// 注意：杠杆不影響絕對盈虧，只影響保證金需求
 					var pnl float64
 					if side == "long" {
 						pnl = quantity * (action.Price - openPrice)
@@ -418,7 +418,7 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 						pnl = quantity * (openPrice - action.Price)
 					}
 
-					// 计算盈亏百分比（相对保证金）
+					// 計算盈虧百分比（相對保證金）
 					positionValue := quantity * openPrice
 					marginUsed := positionValue / float64(leverage)
 					pnlPct := 0.0
@@ -426,7 +426,7 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 						pnlPct = (pnl / marginUsed) * 100
 					}
 
-					// 记录交易结果
+					// 記錄交易結果
 					outcome := TradeOutcome{
 						Symbol:        symbol,
 						Side:          side,
@@ -446,7 +446,7 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 					analysis.RecentTrades = append(analysis.RecentTrades, outcome)
 					analysis.TotalTrades++
 
-					// 分类交易：盈利、亏损、持平（避免将pnl=0算入亏损）
+					// 分類交易：盈利、虧損、持平（避免將pnl=0算入虧損）
 					if pnl > 0 {
 						analysis.WinningTrades++
 						analysis.AvgWin += pnl
@@ -454,9 +454,9 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 						analysis.LosingTrades++
 						analysis.AvgLoss += pnl
 					}
-					// pnl == 0 的交易不计入盈利也不计入亏损，但计入总交易数
+					// pnl == 0 的交易不計入盈利也不計入虧損，但計入總交易數
 
-					// 更新币种统计
+					// 更新幣種統計
 					if _, exists := analysis.SymbolStats[symbol]; !exists {
 						analysis.SymbolStats[symbol] = &SymbolPerformance{
 							Symbol: symbol,
@@ -471,20 +471,20 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 						stats.LosingTrades++
 					}
 
-					// 移除已平仓记录
+					// 移除已平倉記錄
 					delete(openPositions, posKey)
 				}
 			}
 		}
 	}
 
-	// 计算统计指标
+	// 計算統計指標
 	if analysis.TotalTrades > 0 {
 		analysis.WinRate = (float64(analysis.WinningTrades) / float64(analysis.TotalTrades)) * 100
 
-		// 计算总盈利和总亏损
-		totalWinAmount := analysis.AvgWin   // 当前是累加的总和
-		totalLossAmount := analysis.AvgLoss // 当前是累加的总和（负数）
+		// 計算總盈利和總虧損
+		totalWinAmount := analysis.AvgWin   // 當前是累加的總和
+		totalLossAmount := analysis.AvgLoss // 當前是累加的總和（負數）
 
 		if analysis.WinningTrades > 0 {
 			analysis.AvgWin /= float64(analysis.WinningTrades)
@@ -493,17 +493,17 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 			analysis.AvgLoss /= float64(analysis.LosingTrades)
 		}
 
-		// Profit Factor = 总盈利 / 总亏损（绝对值）
-		// 注意：totalLossAmount 是负数，所以取负号得到绝对值
+		// Profit Factor = 總盈利 / 總虧損（絕對值）
+		// 注意：totalLossAmount 是負數，所以取負號得到絕對值
 		if totalLossAmount != 0 {
 			analysis.ProfitFactor = totalWinAmount / (-totalLossAmount)
 		} else if totalWinAmount > 0 {
-			// 只有盈利没有亏损的情况，设置为一个很大的值表示完美策略
+			// 只有盈利沒有虧損的情況，設置為一個很大的值表示完美策略
 			analysis.ProfitFactor = 999.0
 		}
 	}
 
-	// 计算各币种胜率和平均盈亏
+	// 計算各幣種勝率和平均盈虧
 	bestPnL := -999999.0
 	worstPnL := 999999.0
 	for symbol, stats := range analysis.SymbolStats {
@@ -524,37 +524,37 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 
 	// 只保留最近的交易（倒序：最新的在前）
 	if len(analysis.RecentTrades) > 10 {
-		// 反转数组，让最新的在前
+		// 反轉數組，讓最新的在前
 		for i, j := 0, len(analysis.RecentTrades)-1; i < j; i, j = i+1, j-1 {
 			analysis.RecentTrades[i], analysis.RecentTrades[j] = analysis.RecentTrades[j], analysis.RecentTrades[i]
 		}
 		analysis.RecentTrades = analysis.RecentTrades[:10]
 	} else if len(analysis.RecentTrades) > 0 {
-		// 反转数组
+		// 反轉數組
 		for i, j := 0, len(analysis.RecentTrades)-1; i < j; i, j = i+1, j-1 {
 			analysis.RecentTrades[i], analysis.RecentTrades[j] = analysis.RecentTrades[j], analysis.RecentTrades[i]
 		}
 	}
 
-	// 计算夏普比率（需要至少2个数据点）
+	// 計算夏普比率（需要至少2個數據點）
 	analysis.SharpeRatio = l.calculateSharpeRatio(records)
 
 	return analysis, nil
 }
 
-// calculateSharpeRatio 计算夏普比率
-// 基于账户净值的变化计算风险调整后收益
+// calculateSharpeRatio 計算夏普比率
+// 基於賬戶淨值的變化計算風險調整後收益
 func (l *DecisionLogger) calculateSharpeRatio(records []*DecisionRecord) float64 {
 	if len(records) < 2 {
 		return 0.0
 	}
 
-	// 提取每个周期的账户净值
-	// 注意：TotalBalance字段实际存储的是TotalEquity（账户总净值）
-	// TotalUnrealizedProfit字段实际存储的是TotalPnL（相对初始余额的盈亏）
+	// 提取每個周期的賬戶淨值
+	// 注意：TotalBalance字段實際存儲的是TotalEquity（賬戶總淨值）
+	// TotalUnrealizedProfit字段實際存儲的是TotalPnL（相對初始余額的盈虧）
 	var equities []float64
 	for _, record := range records {
-		// 直接使用TotalBalance，因为它已经是完整的账户净值
+		// 直接使用TotalBalance，因為它已經是完整的賬戶淨值
 		equity := record.AccountState.TotalBalance
 		if equity > 0 {
 			equities = append(equities, equity)
@@ -565,7 +565,7 @@ func (l *DecisionLogger) calculateSharpeRatio(records []*DecisionRecord) float64
 		return 0.0
 	}
 
-	// 计算周期收益率（period returns）
+	// 計算周期收益率（period returns）
 	var returns []float64
 	for i := 1; i < len(equities); i++ {
 		if equities[i-1] > 0 {
@@ -578,14 +578,14 @@ func (l *DecisionLogger) calculateSharpeRatio(records []*DecisionRecord) float64
 		return 0.0
 	}
 
-	// 计算平均收益率
+	// 計算平均收益率
 	sumReturns := 0.0
 	for _, r := range returns {
 		sumReturns += r
 	}
 	meanReturn := sumReturns / float64(len(returns))
 
-	// 计算收益率标准差
+	// 計算收益率標准差
 	sumSquaredDiff := 0.0
 	for _, r := range returns {
 		diff := r - meanReturn
@@ -597,15 +597,15 @@ func (l *DecisionLogger) calculateSharpeRatio(records []*DecisionRecord) float64
 	// 避免除以零
 	if stdDev == 0 {
 		if meanReturn > 0 {
-			return 999.0 // 无波动的正收益
+			return 999.0 // 無波動的正收益
 		} else if meanReturn < 0 {
-			return -999.0 // 无波动的负收益
+			return -999.0 // 無波動的負收益
 		}
 		return 0.0
 	}
 
-	// 计算夏普比率（假设无风险利率为0）
-	// 注：直接返回周期级别的夏普比率（非年化），正常范围 -2 到 +2
+	// 計算夏普比率（假設無風險利率為0）
+	// 注：直接返回周期級別的夏普比率（非年化），正常範圍 -2 到 +2
 	sharpeRatio := meanReturn / stdDev
 	return sharpeRatio
 }

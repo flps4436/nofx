@@ -6,23 +6,22 @@ import (
 	"nofx/config"
 	"nofx/trader"
 	"sync"
-	"time"
 )
 
-// TraderManager 管理多个trader实例
+// TraderManager 管理多個trader實例
 type TraderManager struct {
 	traders map[string]*trader.AutoTrader // key: trader ID
 	mu      sync.RWMutex
 }
 
-// NewTraderManager 创建trader管理器
+// NewTraderManager 創建trader管理器
 func NewTraderManager() *TraderManager {
 	return &TraderManager{
 		traders: make(map[string]*trader.AutoTrader),
 	}
 }
 
-// AddTrader 添加一个trader
+// AddTrader 添加一個trader
 func (tm *TraderManager) AddTrader(cfg config.TraderConfig, coinPoolURL string, maxDailyLoss, maxDrawdown float64, stopTradingMinutes int, leverage config.LeverageConfig) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
@@ -31,7 +30,20 @@ func (tm *TraderManager) AddTrader(cfg config.TraderConfig, coinPoolURL string, 
 		return fmt.Errorf("trader ID '%s' 已存在", cfg.ID)
 	}
 
-	// 构建AutoTraderConfig
+	// 決定使用的槓桿配置：優先使用 trader 獨立配置，否則使用全局配置
+	btcEthLeverage := leverage.BTCETHLeverage
+	altcoinLeverage := leverage.AltcoinLeverage
+
+	if cfg.BTCETHLeverage > 0 {
+		btcEthLeverage = cfg.BTCETHLeverage
+		log.Printf("  📊 [%s] 使用獨立BTC/ETH槓桿: %dx", cfg.Name, btcEthLeverage)
+	}
+	if cfg.AltcoinLeverage > 0 {
+		altcoinLeverage = cfg.AltcoinLeverage
+		log.Printf("  📊 [%s] 使用獨立山寨幣槓桿: %dx", cfg.Name, altcoinLeverage)
+	}
+
+	// 構建AutoTraderConfig
 	traderConfig := trader.AutoTraderConfig{
 		ID:                    cfg.ID,
 		Name:                  cfg.Name,
@@ -49,22 +61,21 @@ func (tm *TraderManager) AddTrader(cfg config.TraderConfig, coinPoolURL string, 
 		UseQwen:               cfg.AIModel == "qwen",
 		DeepSeekKey:           cfg.DeepSeekKey,
 		QwenKey:               cfg.QwenKey,
+		OpenAIKey:             cfg.OpenAIKey,
+		OpenAIModelName:       cfg.OpenAIModelName,
 		CustomAPIURL:          cfg.CustomAPIURL,
 		CustomAPIKey:          cfg.CustomAPIKey,
 		CustomModelName:       cfg.CustomModelName,
 		ScanInterval:          cfg.GetScanInterval(),
 		InitialBalance:        cfg.InitialBalance,
-		BTCETHLeverage:        leverage.BTCETHLeverage,  // 使用配置的杠杆倍数
-		AltcoinLeverage:       leverage.AltcoinLeverage, // 使用配置的杠杆倍数
-		MaxDailyLoss:          maxDailyLoss,
-		MaxDrawdown:           maxDrawdown,
-		StopTradingTime:       time.Duration(stopTradingMinutes) * time.Minute,
+		BTCETHLeverage:        btcEthLeverage,  // 使用決定後的杠杆倍數
+		AltcoinLeverage:       altcoinLeverage, // 使用決定後的杠杆倍數
 	}
 
-	// 创建trader实例
+	// 創建trader實例
 	at, err := trader.NewAutoTrader(traderConfig)
 	if err != nil {
-		return fmt.Errorf("创建trader失败: %w", err)
+		return fmt.Errorf("創建trader失敗: %w", err)
 	}
 
 	tm.traders[cfg.ID] = at
@@ -72,7 +83,7 @@ func (tm *TraderManager) AddTrader(cfg config.TraderConfig, coinPoolURL string, 
 	return nil
 }
 
-// GetTrader 获取指定ID的trader
+// GetTrader 獲取指定ID的trader
 func (tm *TraderManager) GetTrader(id string) (*trader.AutoTrader, error) {
 	tm.mu.RLock()
 	defer tm.mu.RUnlock()
@@ -84,7 +95,7 @@ func (tm *TraderManager) GetTrader(id string) (*trader.AutoTrader, error) {
 	return t, nil
 }
 
-// GetAllTraders 获取所有trader
+// GetAllTraders 獲取所有trader
 func (tm *TraderManager) GetAllTraders() map[string]*trader.AutoTrader {
 	tm.mu.RLock()
 	defer tm.mu.RUnlock()
@@ -96,7 +107,7 @@ func (tm *TraderManager) GetAllTraders() map[string]*trader.AutoTrader {
 	return result
 }
 
-// GetTraderIDs 获取所有trader ID列表
+// GetTraderIDs 獲取所有trader ID列表
 func (tm *TraderManager) GetTraderIDs() []string {
 	tm.mu.RLock()
 	defer tm.mu.RUnlock()
@@ -108,17 +119,17 @@ func (tm *TraderManager) GetTraderIDs() []string {
 	return ids
 }
 
-// StartAll 启动所有trader
+// StartAll 啟動所有trader
 func (tm *TraderManager) StartAll() {
 	tm.mu.RLock()
 	defer tm.mu.RUnlock()
 
-	log.Println("🚀 启动所有Trader...")
+	log.Println("🚀 啟動所有Trader...")
 	for id, t := range tm.traders {
 		go func(traderID string, at *trader.AutoTrader) {
-			log.Printf("▶️  启动 %s...", at.GetName())
+			log.Printf("▶️  啟動 %s...", at.GetName())
 			if err := at.Run(); err != nil {
-				log.Printf("❌ %s 运行错误: %v", at.GetName(), err)
+				log.Printf("❌ %s 運行錯誤: %v", at.GetName(), err)
 			}
 		}(id, t)
 	}
@@ -135,7 +146,7 @@ func (tm *TraderManager) StopAll() {
 	}
 }
 
-// GetComparisonData 获取对比数据
+// GetComparisonData 獲取對比數據
 func (tm *TraderManager) GetComparisonData() (map[string]interface{}, error) {
 	tm.mu.RLock()
 	defer tm.mu.RUnlock()

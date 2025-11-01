@@ -39,6 +39,10 @@ type TraderConfig struct {
 	OpenAIKey       string `json:"openai_key,omitempty"`
 	OpenAIModelName string `json:"openai_model_name,omitempty"` // 例如: gpt-4o-mini, gpt-4o, gpt-4-turbo
 
+	// Gemini配置
+	GeminiKey       string `json:"gemini_key,omitempty"`
+	GeminiModelName string `json:"gemini_model_name,omitempty"` // 例如: gemini-1.5-flash, gemini-1.5-pro, gemini-2.0-flash-exp
+
 	// 自定義AI API配置（支持任何OpenAI格式的API）
 	CustomAPIURL    string `json:"custom_api_url,omitempty"`
 	CustomAPIKey    string `json:"custom_api_key,omitempty"`
@@ -130,8 +134,8 @@ func (c *Config) Validate() error {
 		if trader.Name == "" {
 			return fmt.Errorf("trader[%d]: Name不能為空", i)
 		}
-		if trader.AIModel != "qwen" && trader.AIModel != "deepseek" && trader.AIModel != "openai" && trader.AIModel != "custom" {
-			return fmt.Errorf("trader[%d]: ai_model必須是 'qwen', 'deepseek', 'openai' 或 'custom'", i)
+		if trader.AIModel != "qwen" && trader.AIModel != "deepseek" && trader.AIModel != "openai" && trader.AIModel != "gemini" && trader.AIModel != "custom" {
+			return fmt.Errorf("trader[%d]: ai_model必須是 'qwen', 'deepseek', 'openai', 'gemini' 或 'custom'", i)
 		}
 
 		// 驗證交易平台配置
@@ -165,6 +169,9 @@ func (c *Config) Validate() error {
 		}
 		if trader.AIModel == "openai" && trader.OpenAIKey == "" {
 			return fmt.Errorf("trader[%d]: 使用OpenAI時必須配置openai_key", i)
+		}
+		if trader.AIModel == "gemini" && trader.GeminiKey == "" {
+			return fmt.Errorf("trader[%d]: 使用Gemini時必須配置gemini_key", i)
 		}
 		if trader.AIModel == "custom" {
 			if trader.CustomAPIURL == "" {

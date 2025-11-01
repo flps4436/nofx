@@ -17,6 +17,7 @@ const (
 	ProviderDeepSeek Provider = "deepseek"
 	ProviderQwen     Provider = "qwen"
 	ProviderOpenAI   Provider = "openai"
+	ProviderGemini   Provider = "gemini"
 	ProviderCustom   Provider = "custom"
 )
 
@@ -68,6 +69,19 @@ func (cfg *Client) SetOpenAIAPIKey(apiKey, modelName string) {
 		cfg.Model = modelName
 	} else {
 		cfg.Model = "gpt-4o-mini" // 默認使用 gpt-4o-mini，性價比最高
+	}
+	cfg.Timeout = 120 * time.Second
+}
+
+// SetGeminiAPIKey 設置Google Gemini API密鑰
+func (cfg *Client) SetGeminiAPIKey(apiKey, modelName string) {
+	cfg.Provider = ProviderGemini
+	cfg.APIKey = apiKey
+	cfg.BaseURL = "https://generativelanguage.googleapis.com/v1beta"
+	if modelName != "" {
+		cfg.Model = modelName
+	} else {
+		cfg.Model = "gemini-1.5-flash" // 默認使用 gemini-1.5-flash，速度快且經濟
 	}
 	cfg.Timeout = 120 * time.Second
 }
@@ -140,6 +154,11 @@ func (cfg *Client) CallWithMessages(systemPrompt, userPrompt string) (string, er
 
 // callOnce 單次調用AI API（內部使用）
 func (cfg *Client) callOnce(systemPrompt, userPrompt string) (string, error) {
+	// Gemini 使用不同的API格式
+	if cfg.Provider == ProviderGemini {
+		return cfg.callGemini(systemPrompt, userPrompt)
+	}
+
 	// 構建 messages 數組
 	messages := []map[string]string{}
 
@@ -248,6 +267,89 @@ func (cfg *Client) callOnce(systemPrompt, userPrompt string) (string, error) {
 	}
 
 	return result.Choices[0].Message.Content, nil
+}
+
+// callGemini 調用Gemini API（使用Gemini專屬格式）
+func (cfg *Client) callGemini(systemPrompt, userPrompt string) (string, error) {
+	// Gemini API 使用不同的格式
+	// 合併 system prompt 和 user prompt
+	combinedPrompt := systemPrompt
+	if systemPrompt != "" && userPrompt != "" {
+		combinedPrompt += "\n\n" + userPrompt
+	} else if userPrompt != "" {
+		combinedPrompt = userPrompt
+	}
+
+	// 構建 Gemini 請求體
+	requestBody := map[string]interface{}{
+		"contents": []map[string]interface{}{
+			{
+				"parts": []map[string]string{
+					{
+						"text": combinedPrompt,
+					},
+				},
+			},
+		},
+		"generationConfig": map[string]interface{}{
+			"temperature":     0.5,
+			"maxOutputTokens": 2000,
+		},
+	}
+
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		return "", fmt.Errorf("序列化Gemini請求失敗: %w", err)
+	}
+
+	// 構建 URL，Gemini API 使用不同的端點格式
+	url := fmt.Sprintf("%s/models/%s:generateContent?key=%s", cfg.BaseURL, cfg.Model, cfg.APIKey)
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return "", fmt.Errorf("創建Gemini請求失敗: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	// 發送請求
+	client := &http.Client{Timeout: cfg.Timeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("發送Gemini請求失敗: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 讀取響應
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("讀取Gemini響應失敗: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("Gemini API返回錯誤 (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	// 解析 Gemini 響應格式
+	var result struct {
+		Candidates []struct {
+			Content struct {
+				Parts []struct {
+					Text string `json:"text"`
+				} `json:"parts"`
+			} `json:"content"`
+		} `json:"candidates"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", fmt.Errorf("解析Gemini響應失敗: %w", err)
+	}
+
+	if len(result.Candidates) == 0 || len(result.Candidates[0].Content.Parts) == 0 {
+		return "", fmt.Errorf("Gemini API返回空響應")
+	}
+
+	return result.Candidates[0].Content.Parts[0].Text, nil
 }
 
 // isRetryableError 判斷錯誤是否可重試

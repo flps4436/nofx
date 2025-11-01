@@ -48,6 +48,10 @@ type AutoTraderConfig struct {
 	OpenAIKey       string
 	OpenAIModelName string
 
+	// Gemini配置
+	GeminiKey       string
+	GeminiModelName string
+
 	// 自定義AI API配置
 	CustomAPIURL    string
 	CustomAPIKey    string
@@ -116,6 +120,14 @@ func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
 			modelName = "gpt-4o-mini" // 默認模型
 		}
 		log.Printf("🤖 [%s] 使用OpenAI GPT API (模型: %s)", config.Name, modelName)
+	} else if config.AIModel == "gemini" {
+		// 使用Gemini
+		mcpClient.SetGeminiAPIKey(config.GeminiKey, config.GeminiModelName)
+		modelName := config.GeminiModelName
+		if modelName == "" {
+			modelName = "gemini-1.5-flash" // 默認模型
+		}
+		log.Printf("🤖 [%s] 使用Google Gemini API (模型: %s)", config.Name, modelName)
 	} else if config.UseQwen || config.AIModel == "qwen" {
 		// 使用Qwen
 		mcpClient.SetQwenAPIKey(config.QwenKey, "")

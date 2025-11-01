@@ -2,12 +2,16 @@ package mcp
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/google/generative-ai-go/genai"
+	"google.golang.org/api/option"
 )
 
 // Provider AI提供商類型
@@ -105,11 +109,11 @@ func (cfg *Client) SetCustomAPI(apiURL, apiKey, modelName string) {
 }
 
 // SetClient 設置完整的AI配置（高級用戶）
-func (cfg *Client) SetClient(Client Client) {
-	if Client.Timeout == 0 {
-		Client.Timeout = 30 * time.Second
+func (cfg *Client) SetClient(client Client) {
+	if client.Timeout == 0 {
+		client.Timeout = 30 * time.Second
 	}
-	cfg = &Client
+	*cfg = client
 }
 
 // CallWithMessages 使用 system + user prompt 調用AI API（推薦）
@@ -269,9 +273,24 @@ func (cfg *Client) callOnce(systemPrompt, userPrompt string) (string, error) {
 	return result.Choices[0].Message.Content, nil
 }
 
-// callGemini 調用Gemini API（使用Gemini專屬格式）
+// callGemini 調用Gemini API（使用官方 Go SDK）
 func (cfg *Client) callGemini(systemPrompt, userPrompt string) (string, error) {
-	// Gemini API 使用不同的格式
+	ctx := context.Background()
+
+	// 創建 Gemini 客戶端
+	client, err := genai.NewClient(ctx, option.WithAPIKey(cfg.APIKey))
+	if err != nil {
+		return "", fmt.Errorf("創建Gemini客戶端失敗: %w", err)
+	}
+	defer client.Close()
+
+	// 獲取模型
+	model := client.GenerativeModel(cfg.Model)
+
+	// 配置生成參數
+	model.SetTemperature(0.5)
+	model.SetMaxOutputTokens(2000)
+
 	// 合併 system prompt 和 user prompt
 	combinedPrompt := systemPrompt
 	if systemPrompt != "" && userPrompt != "" {
@@ -280,98 +299,40 @@ func (cfg *Client) callGemini(systemPrompt, userPrompt string) (string, error) {
 		combinedPrompt = userPrompt
 	}
 
-	// 構建 Gemini 請求體（按照官方文檔格式）
-	requestBody := map[string]interface{}{
-		"contents": []map[string]interface{}{
-			{
-				"parts": []map[string]interface{}{
-					{
-						"text": combinedPrompt,
-					},
-				},
-			},
-		},
-		"generationConfig": map[string]interface{}{
-			"temperature":     0.5,
-			"maxOutputTokens": 2000,
-		},
-	}
-
-	jsonData, err := json.Marshal(requestBody)
+	// 生成內容
+	resp, err := model.GenerateContent(ctx, genai.Text(combinedPrompt))
 	if err != nil {
-		return "", fmt.Errorf("序列化Gemini請求失敗: %w", err)
+		return "", fmt.Errorf("Gemini API調用失敗: %w", err)
 	}
 
-	// 構建 URL，Gemini API 使用不同的端點格式
-	url := fmt.Sprintf("%s/models/%s:generateContent?key=%s", cfg.BaseURL, cfg.Model, cfg.APIKey)
-
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return "", fmt.Errorf("創建Gemini請求失敗: %w", err)
+	// 檢查響應
+	if resp == nil {
+		return "", fmt.Errorf("Gemini API返回空響應")
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-
-	// 發送請求
-	client := &http.Client{Timeout: cfg.Timeout}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("發送Gemini請求失敗: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// 讀取響應
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("讀取Gemini響應失敗: %w", err)
+	if len(resp.Candidates) == 0 {
+		return "", fmt.Errorf("Gemini API返回空候選結果")
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("Gemini API返回錯誤 (status %d): %s", resp.StatusCode, string(body))
+	if resp.Candidates[0].Content == nil {
+		return "", fmt.Errorf("Gemini API候選結果無內容")
 	}
 
-	// 先打印原始響應以便調試
-	fmt.Printf("🔍 Gemini API 原始響應: %s\n", string(body))
-
-	// 解析 Gemini 響應格式（根據官方文檔）
-	var result struct {
-		Candidates []struct {
-			Content struct {
-				Parts []struct {
-					Text string `json:"text"`
-				} `json:"parts"`
-				Role string `json:"role"`
-			} `json:"content"`
-			FinishReason  string `json:"finishReason"`
-			Index         int    `json:"index"`
-			SafetyRatings []struct {
-				Category    string `json:"category"`
-				Probability string `json:"probability"`
-			} `json:"safetyRatings"`
-		} `json:"candidates"`
-		PromptFeedback struct {
-			SafetyRatings []struct {
-				Category    string `json:"category"`
-				Probability string `json:"probability"`
-			} `json:"safetyRatings"`
-		} `json:"promptFeedback"`
+	if len(resp.Candidates[0].Content.Parts) == 0 {
+		return "", fmt.Errorf("Gemini API內容無部分")
 	}
 
-	if err := json.Unmarshal(body, &result); err != nil {
-		return "", fmt.Errorf("解析Gemini響應失敗: %w\n原始響應: %s", err, string(body))
+	// 提取文本
+	var result strings.Builder
+	for _, part := range resp.Candidates[0].Content.Parts {
+		if text, ok := part.(genai.Text); ok {
+			result.WriteString(string(text))
+		}
 	}
 
-	if len(result.Candidates) == 0 {
-		return "", fmt.Errorf("Gemini API返回空響應，無候選結果\n原始響應: %s", string(body))
-	}
-
-	if len(result.Candidates[0].Content.Parts) == 0 {
-		return "", fmt.Errorf("Gemini API返回空響應，候選結果無內容部分\n原始響應: %s", string(body))
-	}
-
-	text := result.Candidates[0].Content.Parts[0].Text
+	text := result.String()
 	if text == "" {
-		return "", fmt.Errorf("Gemini API返回空文本\n原始響應: %s", string(body))
+		return "", fmt.Errorf("Gemini API返回空文本")
 	}
 
 	return text, nil

@@ -657,3 +657,61 @@ func stringContains(s, substr string) bool {
 	}
 	return false
 }
+
+// GetOrderHistory 獲取訂單歷史（用於統計已完成的交易）
+func (t *FuturesTrader) GetOrderHistory(startTime, endTime int64, limit int) ([]map[string]interface{}, error) {
+	if limit <= 0 {
+		limit = 500 // 默認500條
+	}
+	if limit > 1000 {
+		limit = 1000 // 幣安API限制最多1000條
+	}
+
+	service := t.client.NewListOrdersService().Limit(limit)
+
+	if startTime > 0 {
+		service = service.StartTime(startTime)
+	}
+	if endTime > 0 {
+		service = service.EndTime(endTime)
+	} else {
+		service = service.EndTime(time.Now().UnixMilli())
+	}
+
+	orders, err := service.Do(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("獲取訂單歷史失敗: %w", err)
+	}
+
+	var result []map[string]interface{}
+	for _, order := range orders {
+		// 只統計已完成的訂單（FILLED）
+		if order.Status != futures.OrderStatusTypeFilled {
+			continue
+		}
+
+		orderMap := make(map[string]interface{})
+		orderMap["order_id"] = order.OrderID
+		orderMap["symbol"] = order.Symbol
+		orderMap["side"] = string(order.Side)                  // BUY/SELL
+		orderMap["position_side"] = string(order.PositionSide) // LONG/SHORT/BOTH
+		orderMap["type"] = string(order.Type)                  // MARKET/LIMIT/STOP_MARKET/TAKE_PROFIT_MARKET等
+		orderMap["status"] = string(order.Status)              // FILLED
+		orderMap["executed_qty"], _ = strconv.ParseFloat(order.ExecutedQuantity, 64)
+		orderMap["avg_price"], _ = strconv.ParseFloat(order.AvgPrice, 64)
+		orderMap["time"] = order.Time
+		orderMap["update_time"] = order.UpdateTime
+
+		// 計算總交易額
+		qty, _ := strconv.ParseFloat(order.ExecutedQuantity, 64)
+		price, _ := strconv.ParseFloat(order.AvgPrice, 64)
+		orderMap["total_value"] = qty * price
+
+		result = append(result, orderMap)
+	}
+
+	log.Printf("📊 獲取訂單歷史: 共 %d 條已完成訂單（時間範圍: %d - %d）",
+		len(result), startTime, endTime)
+
+	return result, nil
+}

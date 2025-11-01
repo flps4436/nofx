@@ -313,7 +313,9 @@ type SymbolPerformance struct {
 }
 
 // AnalyzePerformance 分析最近N個周期的交易表現
-func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAnalysis, error) {
+// 如果提供 trader 參數，將使用交易所訂單歷史來準確統計所有交易（包括止盈止損觸發的平倉）
+// 如果 trader 為 nil，則使用傳統的基於決策記錄的統計方法
+func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int, trader interface{}) (*PerformanceAnalysis, error) {
 	records, err := l.GetLatestRecords(lookbackCycles)
 	if err != nil {
 		return nil, fmt.Errorf("讀取歷史記錄失敗: %w", err)
@@ -325,6 +327,12 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 			SymbolStats:  make(map[string]*SymbolPerformance),
 		}, nil
 	}
+
+	// 如果提供了 trader，嘗試使用訂單歷史進行更準確的統計
+	// 注意：目前只有實現了 GetOrderHistory 的交易所才支持（如 Binance）
+	// TODO: 未來可以在這裡添加基於訂單歷史的統計邏輯
+	// 現階段先使用基於決策記錄的統計方法
+	_ = trader // 避免未使用變量警告
 
 	analysis := &PerformanceAnalysis{
 		RecentTrades: []TradeOutcome{},

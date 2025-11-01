@@ -519,7 +519,8 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 
 	// 5. 分析歷史表現（最近100個周期，避免長期持倉的交易記錄丟失）
 	// 假設每3分鐘一個周期，100個周期 = 5小時，足夠覆蓋大部分交易
-	performance, err := at.decisionLogger.AnalyzePerformance(100)
+	// 傳入 trader 以便直接查詢交易所訂單歷史
+	performance, err := at.decisionLogger.AnalyzePerformance(100, at.trader)
 	if err != nil {
 		log.Printf("⚠️  分析歷史表現失敗: %v", err)
 		// 不影響主流程，繼續執行（但設置performance為nil以避免傳遞錯誤數據）

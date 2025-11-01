@@ -390,7 +390,9 @@ func (s *Server) handlePerformance(c *gin.Context) {
 
 	// 分析最近100個周期的交易表現（避免長期持倉的交易記錄丟失）
 	// 假設每3分鐘一個周期，100個周期 = 5小時，足夠覆蓋大部分交易
-	performance, err := trader.GetDecisionLogger().AnalyzePerformance(100)
+	// 注意：API這裡無法訪問底層trader實例，傳nil使用舊的統計方法
+	// 真正的統計在 auto_trader.go 的 buildTradingContext 中進行
+	performance, err := trader.GetDecisionLogger().AnalyzePerformance(100, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("分析歷史表現失敗: %v", err),

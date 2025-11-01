@@ -1010,5 +1010,22 @@ func (t *AsterTrader) FormatQuantity(symbol string, quantity float64) (string, e
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%v", formatted), nil
+
+	// formatQuantity 返回 float64，需要轉換為字符串
+	prec, err := t.getPrecision(symbol)
+	if err != nil {
+		return fmt.Sprintf("%.8f", formatted), nil // 使用默認精度
+	}
+
+	return t.formatFloatWithPrecision(formatted, prec.QuantityPrecision), nil
+}
+
+// GetOrderHistory 獲取訂單歷史（用於統計已完成的交易）
+// 注意：Aster的歷史訂單查詢功能可能有限，這裡提供基本實現
+func (t *AsterTrader) GetOrderHistory(startTime, endTime int64, limit int) ([]map[string]interface{}, error) {
+	// Aster SDK 可能沒有直接的歷史訂單查詢API
+	// 這裡返回空列表，表示暫不支持
+	// 如果 Aster 提供了相關API，可以在這裡實現
+	log.Printf("⚠️  Aster 暫不支持訂單歷史查詢")
+	return []map[string]interface{}{}, nil
 }

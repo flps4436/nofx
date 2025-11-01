@@ -688,3 +688,13 @@ func absFloat(x float64) float64 {
 	}
 	return x
 }
+
+// GetOrderHistory 獲取訂單歷史（用於統計已完成的交易）
+// 注意：Hyperliquid的歷史訂單查詢功能可能有限，這裡提供基本實現
+func (t *HyperliquidTrader) GetOrderHistory(startTime, endTime int64, limit int) ([]map[string]interface{}, error) {
+	// Hyperliquid SDK 可能沒有直接的歷史訂單查詢API
+	// 這裡返回空列表，表示暫不支持
+	// 如果 Hyperliquid 提供了相關API，可以在這裡實現
+	log.Printf("⚠️  Hyperliquid 暫不支持訂單歷史查詢")
+	return []map[string]interface{}{}, nil
+}

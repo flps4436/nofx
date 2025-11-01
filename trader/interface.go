@@ -41,4 +41,10 @@ type Trader interface {
 
 	// FormatQuantity 格式化數量到正確的精度
 	FormatQuantity(symbol string, quantity float64) (string, error)
+
+	// GetOrderHistory 獲取訂單歷史（用於統計已完成的交易）
+	// startTime: 開始時間（毫秒時間戳），如果為0則不限制
+	// endTime: 結束時間（毫秒時間戳），如果為0則使用當前時間
+	// limit: 返回數量限制（建議500-1000）
+	GetOrderHistory(startTime, endTime int64, limit int) ([]map[string]interface{}, error)
 }

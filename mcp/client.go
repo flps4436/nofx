@@ -115,7 +115,7 @@ func (cfg *Client) SetClient(Client Client) {
 // CallWithMessages 使用 system + user prompt 調用AI API（推薦）
 func (cfg *Client) CallWithMessages(systemPrompt, userPrompt string) (string, error) {
 	if cfg.APIKey == "" {
-		return "", fmt.Errorf("AI API密鑰未設置，請先調用 SetDeepSeekAPIKey()、SetQwenAPIKey() 或 SetOpenAIAPIKey()")
+		return "", fmt.Errorf("AI API密鑰未設置，請先調用 SetDeepSeekAPIKey()、SetQwenAPIKey()、SetOpenAIAPIKey() 或 SetGeminiAPIKey()")
 	}
 
 	// 重試配置

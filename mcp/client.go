@@ -280,11 +280,11 @@ func (cfg *Client) callGemini(systemPrompt, userPrompt string) (string, error) {
 		combinedPrompt = userPrompt
 	}
 
-	// 構建 Gemini 請求體
+	// 構建 Gemini 請求體（按照官方文檔格式）
 	requestBody := map[string]interface{}{
 		"contents": []map[string]interface{}{
 			{
-				"parts": []map[string]string{
+				"parts": []map[string]interface{}{
 					{
 						"text": combinedPrompt,
 					},
@@ -330,26 +330,51 @@ func (cfg *Client) callGemini(systemPrompt, userPrompt string) (string, error) {
 		return "", fmt.Errorf("Gemini API返回錯誤 (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	// 解析 Gemini 響應格式
+	// 先打印原始響應以便調試
+	fmt.Printf("🔍 Gemini API 原始響應: %s\n", string(body))
+
+	// 解析 Gemini 響應格式（根據官方文檔）
 	var result struct {
 		Candidates []struct {
 			Content struct {
 				Parts []struct {
 					Text string `json:"text"`
 				} `json:"parts"`
+				Role string `json:"role"`
 			} `json:"content"`
+			FinishReason  string `json:"finishReason"`
+			Index         int    `json:"index"`
+			SafetyRatings []struct {
+				Category    string `json:"category"`
+				Probability string `json:"probability"`
+			} `json:"safetyRatings"`
 		} `json:"candidates"`
+		PromptFeedback struct {
+			SafetyRatings []struct {
+				Category    string `json:"category"`
+				Probability string `json:"probability"`
+			} `json:"safetyRatings"`
+		} `json:"promptFeedback"`
 	}
 
 	if err := json.Unmarshal(body, &result); err != nil {
-		return "", fmt.Errorf("解析Gemini響應失敗: %w", err)
+		return "", fmt.Errorf("解析Gemini響應失敗: %w\n原始響應: %s", err, string(body))
 	}
 
-	if len(result.Candidates) == 0 || len(result.Candidates[0].Content.Parts) == 0 {
-		return "", fmt.Errorf("Gemini API返回空響應")
+	if len(result.Candidates) == 0 {
+		return "", fmt.Errorf("Gemini API返回空響應，無候選結果\n原始響應: %s", string(body))
 	}
 
-	return result.Candidates[0].Content.Parts[0].Text, nil
+	if len(result.Candidates[0].Content.Parts) == 0 {
+		return "", fmt.Errorf("Gemini API返回空響應，候選結果無內容部分\n原始響應: %s", string(body))
+	}
+
+	text := result.Candidates[0].Content.Parts[0].Text
+	if text == "" {
+		return "", fmt.Errorf("Gemini API返回空文本\n原始響應: %s", string(body))
+	}
+
+	return text, nil
 }
 
 // isRetryableError 判斷錯誤是否可重試

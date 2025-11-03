@@ -17,7 +17,7 @@ type HyperliquidTrader struct {
 	ctx           context.Context
 	walletAddr    string
 	meta          *hyperliquid.Meta // 缓存meta信息（包含精度等）
-	isCrossMargin bool             // 是否为全仓模式
+	isCrossMargin bool              // 是否为全仓模式
 }
 
 // NewHyperliquidTrader 创建Hyperliquid交易器
@@ -499,6 +499,15 @@ func (t *HyperliquidTrader) CancelAllOrders(symbol string) error {
 
 	log.Printf("  ✓ 已取消 %s 的所有挂单", symbol)
 	return nil
+}
+
+// CancelStopOrders 取消该币种的止盈/止损单（用于调整止盈止损位置）
+func (t *HyperliquidTrader) CancelStopOrders(symbol string) error {
+	// Hyperliquid中，trigger订单的结构可能不同
+	// 为了简化，直接取消该币种的所有订单
+	// 因为在更新止盈止损后会立即创建新的订单
+	log.Printf("  🔄 取消 %s 的所有挂单（包括止盈止损单）", symbol)
+	return t.CancelAllOrders(symbol)
 }
 
 // GetMarketPrice 获取市场价格

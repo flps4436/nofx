@@ -27,8 +27,8 @@ import (
 // AsterTrader Aster交易平台实现
 type AsterTrader struct {
 	ctx        context.Context
-	user       string           // 主钱包地址 (ERC20)
-	signer     string           // API钱包地址
+	user       string            // 主钱包地址 (ERC20)
+	signer     string            // API钱包地址
 	privateKey *ecdsa.PrivateKey // API钱包私钥
 	client     *http.Client
 	baseURL    string
@@ -99,9 +99,9 @@ func (t *AsterTrader) getPrecision(symbol string) (SymbolPrecision, error) {
 	body, _ := io.ReadAll(resp.Body)
 	var info struct {
 		Symbols []struct {
-			Symbol            string `json:"symbol"`
-			PricePrecision    int    `json:"pricePrecision"`
-			QuantityPrecision int    `json:"quantityPrecision"`
+			Symbol            string                   `json:"symbol"`
+			PricePrecision    int                      `json:"pricePrecision"`
+			QuantityPrecision int                      `json:"quantityPrecision"`
 			Filters           []map[string]interface{} `json:"filters"`
 		} `json:"symbols"`
 	}
@@ -172,6 +172,61 @@ func (t *AsterTrader) formatPrice(symbol string, price float64) (float64, error)
 	// 如果没有tick size，则按精度四舍五入
 	multiplier := math.Pow10(prec.PricePrecision)
 	return math.Round(price*multiplier) / multiplier, nil
+}
+
+// CancelStopOrders 取消该币种的止盈/止损单（用于调整止盈止损位置）
+func (t *AsterTrader) CancelStopOrders(symbol string) error {
+	// 获取该币种的所有未完成订单
+	params := map[string]interface{}{
+		"symbol": symbol,
+	}
+
+	body, err := t.request("GET", "/fapi/v3/openOrders", params)
+	if err != nil {
+		return fmt.Errorf("获取未完成订单失败: %w", err)
+	}
+
+	var orders []map[string]interface{}
+	if err := json.Unmarshal(body, &orders); err != nil {
+		return fmt.Errorf("解析订单数据失败: %w", err)
+	}
+
+	// 过滤出止盈止损单并取消
+	canceledCount := 0
+	for _, order := range orders {
+		orderType, _ := order["type"].(string)
+
+		// 只取消止损和止盈订单
+		if orderType == "STOP_MARKET" ||
+			orderType == "TAKE_PROFIT_MARKET" ||
+			orderType == "STOP" ||
+			orderType == "TAKE_PROFIT" {
+
+			orderID, _ := order["orderId"].(float64)
+			cancelParams := map[string]interface{}{
+				"symbol":  symbol,
+				"orderId": int64(orderID),
+			}
+
+			_, err := t.request("DELETE", "/fapi/v3/order", cancelParams)
+			if err != nil {
+				log.Printf("  ⚠ 取消订单 %d 失败: %v", int64(orderID), err)
+				continue
+			}
+
+			canceledCount++
+			log.Printf("  ✓ 已取消 %s 的止盈/止损单 (订单ID: %d, 类型: %s)",
+				symbol, int64(orderID), orderType)
+		}
+	}
+
+	if canceledCount == 0 {
+		log.Printf("  ℹ %s 没有止盈/止损单需要取消", symbol)
+	} else {
+		log.Printf("  ✓ 已取消 %s 的 %d 个止盈/止损单", symbol, canceledCount)
+	}
+
+	return nil
 }
 
 // formatQuantity 格式化数量到正确精度和step size
@@ -506,14 +561,14 @@ func (t *AsterTrader) GetPositions() ([]map[string]interface{}, error) {
 
 		// 返回与Binance相同的字段名
 		result = append(result, map[string]interface{}{
-			"symbol":            pos["symbol"],
-			"side":              side,
-			"positionAmt":       posAmt,
-			"entryPrice":        entryPrice,
-			"markPrice":         markPrice,
-			"unRealizedProfit":  unRealizedProfit,
-			"leverage":          leverageVal,
-			"liquidationPrice":  liquidationPrice,
+			"symbol":           pos["symbol"],
+			"side":             side,
+			"positionAmt":      posAmt,
+			"entryPrice":       entryPrice,
+			"markPrice":        markPrice,
+			"unRealizedProfit": unRealizedProfit,
+			"leverage":         leverageVal,
+			"liquidationPrice": liquidationPrice,
 		})
 	}
 
@@ -827,18 +882,18 @@ func (t *AsterTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 	if !isCrossMargin {
 		marginType = "ISOLATED"
 	}
-	
+
 	params := map[string]interface{}{
 		"symbol":     symbol,
 		"marginType": marginType,
 	}
-	
+
 	// 使用request方法调用API
 	_, err := t.request("POST", "/fapi/v3/marginType", params)
 	if err != nil {
 		// 如果错误表示无需更改，忽略错误
-		if strings.Contains(err.Error(), "No need to change") || 
-		   strings.Contains(err.Error(), "Margin type cannot be changed") {
+		if strings.Contains(err.Error(), "No need to change") ||
+			strings.Contains(err.Error(), "Margin type cannot be changed") {
 			log.Printf("  ✓ %s 仓位模式已是 %s 或有持仓无法更改", symbol, marginType)
 			return nil
 		}
@@ -846,7 +901,7 @@ func (t *AsterTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 		// 不返回错误，让交易继续
 		return nil
 	}
-	
+
 	log.Printf("  ✓ %s 仓位模式已设置为 %s", symbol, marginType)
 	return nil
 }
